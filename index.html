@@ -24,7 +24,7 @@
 
     /* 左側選單 */
     #sidebar {
-      width: 220px;
+      width: 280px;
       padding: 18px;
       box-sizing: border-box;
       position: fixed;
@@ -42,14 +42,15 @@
       font-size: 16px;
     }
 
-    #setList { padding: 0; margin: 0 0 10px 0; }
-    #setList li { list-style: none; padding: 8px 10px; cursor: pointer; border-radius: 4px; margin-bottom: 6px; background: transparent; transition: background 0.15s ease; }
+  #setList { padding: 0; margin: 0 0 10px 0; }
+  /* 讓按鈕寬度延伸並避免換行 */
+  #setList li { display: block; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; list-style: none; padding: 8px 10px; cursor: pointer; border-radius: 4px; margin-bottom: 6px; background: transparent; transition: background 0.15s ease; }
     #setList li:hover { background: rgba(255,255,255,0.03); }
     #setList li.active { background: #6ee7b7; color: #042; font-weight: 600; }
     .hint { font-size: 12px; color: rgba(230,238,240,0.7); margin-top: 8px; }
 
-    /* 主區塊（放 canvas） */
-    #main { margin-left: 240px; display: flex; align-items: center; justify-content: center; width: calc(100% - 240px); height: 100vh; }
+  /* 主區塊（放 canvas） */
+  #main { margin-left: 300px; display: flex; align-items: center; justify-content: center; width: calc(100% - 300px); height: 100vh; }
 
     #glslCanvas {
       max-width: 90vw;
@@ -68,10 +69,10 @@
     <aside id="sidebar">
       <h3>Image sets</h3>
       <ul id="setList">
-        <li data-set="0" class="active">Set 1 — high1.png, low1.jpg</li>
-        <li data-set="1">Set 2 — high2.png, low2.jpg</li>
-        <li data-set="2">Set 3 — high3.png, low3.jpg</li>
-        <li data-set="3">Set 4 — high4.png, low4.jpg</li>
+        <li data-set="0" class="active">Set 1 — 台北 / 京都近郊 </li>
+        <li data-set="1">Set 2 — 鄰暗時刻 </li>
+        <li data-set="2">Set 3 — 街角一隅 </li>
+        <li data-set="3">Set 4 — 參拜 </li>
       </ul>
       <p class="hint">點選切換貼圖組 (共 4 組)</p>
     </aside>

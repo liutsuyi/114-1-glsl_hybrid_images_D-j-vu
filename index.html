@@ -43,8 +43,9 @@
     }
 
   #setList { padding: 0; margin: 0 0 10px 0; }
-  /* 讓按鈕寬度延伸並避免換行 */
-  #setList li { display: block; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; list-style: none; padding: 8px 10px; cursor: pointer; border-radius: 4px; margin-bottom: 6px; background: transparent; transition: background 0.15s ease; }
+  /* 讓按鈕寬度延伸並避免換行，並於左側顯示正方形 icon */
+  #setList li { display: flex; align-items: center; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; list-style: none; padding: 8px 10px; cursor: pointer; border-radius: 4px; margin-bottom: 6px; background: transparent; transition: background 0.15s ease; }
+  #setList li .set-icon { width: 44px; height: 44px; flex: 0 0 44px; object-fit: cover; border-radius: 6px; margin-right: 10px; }
     #setList li:hover { background: rgba(255,255,255,0.03); }
     #setList li.active { background: #6ee7b7; color: #042; font-weight: 600; }
     .hint { font-size: 12px; color: rgba(230,238,240,0.7); margin-top: 8px; }
@@ -69,10 +70,10 @@
     <aside id="sidebar">
       <h3>Déjà vu Image sets</h3>
       <ul id="setList">
-        <li data-set="0" class="active">Set 1 — 台北 / 京都近郊 </li>
-        <li data-set="1">Set 2 — 鄰暗時刻 </li>
-        <li data-set="2">Set 3 — 街角一隅 </li>
-        <li data-set="3">Set 4 — 參拜 </li>
+        <li data-set="0" class="active"><img class="set-icon" src="data/icon1.png" alt="set1"> <span>Set 1 — 台北 / 京都近郊</span></li>
+        <li data-set="1"><img class="set-icon" src="data/icon2.png" alt="set2"> <span>Set 2 — 鄰暗時刻</span></li>
+        <li data-set="2"><img class="set-icon" src="data/icon3.png" alt="set3"> <span>Set 3 — 街角一隅</span></li>
+        <li data-set="3"><img class="set-icon" src="data/icon4.png" alt="set4"> <span>Set 4 — 參拜</span></li>
       </ul>
       <p class="hint">點選切換貼圖組 (共 4 組)</p>
     </aside>

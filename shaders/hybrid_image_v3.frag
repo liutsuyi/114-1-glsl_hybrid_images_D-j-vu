@@ -49,7 +49,8 @@ void main() {
     offset[8] = vec2( 1,  1);
 
 
-    // 3.Step1: Low-pass filter (for far-distance image u_tex1) //
+    // 3.Step1: Low-pass + Mid-pass (Difference of Gaussians) for far-distance image u_tex1
+    // We compute two blurred versions (small and large) and derive a mid (band-pass) via DoG
     vec3 blurSmall = vec3(0.0);
     vec3 blurLarge = vec3(0.0);
     for (int i = 0; i < 9; i++) {
@@ -57,7 +58,11 @@ void main() {
         blurSmall += texture2D(u_tex1, sampleUV).rgb * kernelSmall[i];
         blurLarge += texture2D(u_tex1, sampleUV).rgb * kernelLarge[i];
     }
-    vec3 lowpass = 0.5 * blurSmall + 0.5 * blurLarge;// Combine small and large kernels to simulate multi-pass blur
+    // lowpass: use the larger-kernel blur (far background)
+    vec3 lowpass = blurLarge;
+    // midpass: Difference of Gaussians (band-pass): small blur - large blur
+    float midGain = 1.2; // amplify mid frequencies if needed
+    vec3 midpass = (blurSmall - blurLarge) * midGain;
   
 
     // 4.Step3: High-pass filter (for near-distance image u_tex0) //
@@ -104,10 +109,24 @@ void main() {
         highpass = mix(highpass, blur, blurStrength);
 
 
-    // 5.Step4: Combine filtered results (hybrid fusion) //
-    float lowpassWeight =1.0-0.5*mouse.y; //畫面y向控制：高、低頻混合比例
-    float highpassWeight = mouse.y+0.2;
-    vec3 hybrid = lowpass * lowpassWeight + highpass * highpassWeight;
+    // 5.Step4: Combine filtered results (hybrid fusion) into three layers: low / mid / high
+    float lowpassWeight = 1.0 - 0.5 * mouse.y; // 畫面 y 向控制：遠近混合比例
+    float highpassWeight = mouse.y + 0.2;
+    float midpassWeight = 1.0 - lowpassWeight - highpassWeight;
+    if (midpassWeight < 0.0) midpassWeight = 0.0;
+    // Normalize weights so they sum to 1 (prevents over/under exposure)
+    float wsum = lowpassWeight + midpassWeight + highpassWeight;
+    if (wsum > 0.0) {
+        lowpassWeight /= wsum;
+        midpassWeight /= wsum;
+        highpassWeight /= wsum;
+    }
+
+    // Optionally tint or clamp midpass to avoid large color shifts
+    float midClamp = 2.0; // prevent extreme midpass amplification
+    midpass = clamp(midpass, -vec3(midClamp), vec3(midClamp));
+
+    vec3 hybrid = lowpass * lowpassWeight + midpass * midpassWeight + highpass * highpassWeight;
     
     
 

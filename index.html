@@ -50,6 +50,13 @@
     #setList li.active { background: #6ee7b7; color: #042; font-weight: 600; }
     .hint { font-size: 12px; color: rgba(230,238,240,0.7); margin-top: 8px; }
 
+  /* 控制面板（滑桿） */
+  .controls { margin-top: 12px; }
+  .control { display: flex; align-items: center; margin-bottom: 8px; }
+  .control label { width: 80px; font-size: 13px; color: rgba(230,238,240,0.9); }
+  .control input[type="range"] { flex: 1; }
+  .control .val { width: 36px; text-align: right; font-size: 12px; margin-left: 8px; }
+
   /* 主區塊（放 canvas） */
   #main { margin-left: 300px; display: flex; align-items: center; justify-content: center; width: calc(100% - 300px); height: 100vh; }
 
@@ -76,10 +83,37 @@
         <li data-set="3"><img class="set-icon" src="data/icon4.png" alt="set4"> <span>Set 4 — 參拜</span></li>
       </ul>
       <p class="hint">點選切換貼圖組 (共 4 組)</p>
+      <div class="controls">
+        <h4 style="margin:8px 0 6px 0; font-size:14px;">Layer controls</h4>
+        <div class="control">
+          <label for="lowRange">Low</label>
+          <input id="lowRange" type="range" min="0" max="1" step="0.01" value="0.5">
+          <div class="val" id="lowVal">0.50</div>
+        </div>
+        <div class="control">
+          <label for="midRange">Mid</label>
+          <input id="midRange" type="range" min="0" max="1" step="0.01" value="0.25">
+          <div class="val" id="midVal">0.25</div>
+        </div>
+        <div class="control">
+          <label for="highRange">High</label>
+          <input id="highRange" type="range" min="0" max="1" step="0.01" value="0.25">
+          <div class="val" id="highVal">0.25</div>
+        </div>
+        <div class="control">
+          <label for="midGainRange">MidGain</label>
+          <input id="midGainRange" type="range" min="0" max="3" step="0.05" value="1.20">
+          <div class="val" id="midGainVal">1.20</div>
+        </div>
+        <div class="control">
+          <label></label>
+          <button id="resetBtn" style="padding:6px 10px; border-radius:6px; background:#21353a; color:#e6eef0; border:1px solid rgba(255,255,255,0.04); cursor:pointer;">重置</button>
+        </div>
+      </div>
     </aside>
     <main id="main">
       <canvas id="glslCanvas" data-fragment-url="shaders/hybrid_image_v3.frag" width="900" height="600"
-        data-textures="data/high.png, data/low.jpg"></canvas>
+        data-textures="data/high1.png, data/low1.jpg, data/mid1.png"></canvas>
     </main>
   </div>
 </body>
@@ -100,12 +134,66 @@
       return;
     }
 
-    // 定義 4 組貼圖（每組兩張），請確保這些檔案存在於 data/ 下或自行改路徑
+    // 載入固定的 mid-pass 圖片（single source mid1.png）到 u_tex2
+    if (window.sandbox && window.sandbox.setUniform) {
+      window.sandbox.setUniform('u_tex2', 'data/mid1.png');
+    }
+
+    // --- 初始化控制滑桿與 uniforms ---
+    var lowRange = document.getElementById('lowRange');
+    var midRange = document.getElementById('midRange');
+    var highRange = document.getElementById('highRange');
+    var midGainRange = document.getElementById('midGainRange');
+    var lowVal = document.getElementById('lowVal');
+    var midVal = document.getElementById('midVal');
+    var highVal = document.getElementById('highVal');
+    var midGainVal = document.getElementById('midGainVal');
+
+    function updateUIValue(el, display) {
+      var v = parseFloat(el.value);
+      display.textContent = v.toFixed(2);
+      return v;
+    }
+
+    function pushUniforms() {
+      if (!window.sandbox || !window.sandbox.setUniform) return;
+      var low = updateUIValue(lowRange, lowVal);
+      var mid = updateUIValue(midRange, midVal);
+      var high = updateUIValue(highRange, highVal);
+      var mg = updateUIValue(midGainRange, midGainVal);
+      // Send floats to shader; shader will normalize weights if sum > 0
+      window.sandbox.setUniform('u_lowWeight', low);
+      window.sandbox.setUniform('u_midWeight', mid);
+      window.sandbox.setUniform('u_highWeight', high);
+      window.sandbox.setUniform('u_midGain', mg);
+    }
+
+    // Bind events
+    [lowRange, midRange, highRange, midGainRange].forEach(function (el) {
+      el.addEventListener('input', pushUniforms);
+    });
+
+    // Reset button
+    var resetBtn = document.getElementById('resetBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        lowRange.value = '0.50';
+        midRange.value = '0.25';
+        highRange.value = '0.25';
+        midGainRange.value = '1.20';
+        pushUniforms();
+      });
+    }
+
+    // 初始 push
+    pushUniforms();
+
+    // 定義 4 組貼圖（每組三張：high / low / mid），請確保這些檔案存在於 data/ 下或自行改路徑
     var textureSets = [
-      ['data/high1.png', 'data/low1.jpg'],
-      ['data/high2.png', 'data/low2.jpg'],
-      ['data/high3.png', 'data/low3.jpg'],
-      ['data/high4.png', 'data/low4.jpg']
+      ['data/high1.png', 'data/low1.jpg', 'data/mid1.png'],
+      ['data/high2.png', 'data/low2.jpg', 'data/mid2.png'],
+      ['data/high3.png', 'data/low3.jpg', 'data/mid3.png'],
+      ['data/high4.png', 'data/low4.jpg', 'data/mid4.png']
     ];
 
     var setList = document.getElementById('setList');
@@ -121,10 +209,13 @@
       index = Math.max(0, Math.min(textureSets.length - 1, index));
       var paths = textureSets[index];
       // GlslCanvas 使用 setUniform 來載入 sampler2D (會呼叫 loadTexture)
-      // 預設 shader 可能用的是 u_tex0, u_tex1，原先 data-textures 也用這個命名
+      // 現在每組包含三張貼圖：u_tex0 (high), u_tex1 (low), u_tex2 (mid)
       if (window.sandbox && window.sandbox.setUniform) {
         window.sandbox.setUniform('u_tex0', paths[0]);
         window.sandbox.setUniform('u_tex1', paths[1]);
+        if (paths.length > 2) {
+          window.sandbox.setUniform('u_tex2', paths[2]);
+        }
         console.info('Loaded texture set', index, paths);
       } else {
         console.warn('sandbox not ready yet');

@@ -15,7 +15,13 @@ uniform vec2 u_mouse;
 uniform float u_time;
 uniform sampler2D u_tex0; // High-pass source (near image)
 uniform sampler2D u_tex1; // Low-pass source (far image)
+uniform sampler2D u_tex2; // Mid-pass source (band image)
 uniform sampler2D u_mask; // Masking pattern texture (e.g. paper grain, cloud)
+// Controls (can be set from JS via GlslCanvas.setUniform)
+uniform float u_midGain;
+uniform float u_lowWeight;
+uniform float u_midWeight;
+uniform float u_highWeight;
 
 void main() {
     
@@ -60,9 +66,9 @@ void main() {
     }
     // lowpass: use the larger-kernel blur (far background)
     vec3 lowpass = blurLarge;
-    // midpass: Difference of Gaussians (band-pass): small blur - large blur
-    float midGain = 1.2; // amplify mid frequencies if needed
-    vec3 midpass = (blurSmall - blurLarge) * midGain;
+    // midpass: use provided mid texture (u_tex2) as band image and apply gain
+    float midGain = max(0.0, u_midGain);
+    vec3 midpass = texture2D(u_tex2, uv).rgb * midGain;
   
 
     // 4.Step3: High-pass filter (for near-distance image u_tex0) //
@@ -110,16 +116,29 @@ void main() {
 
 
     // 5.Step4: Combine filtered results (hybrid fusion) into three layers: low / mid / high
-    float lowpassWeight = 1.0 - 0.5 * mouse.y; // 畫面 y 向控制：遠近混合比例
-    float highpassWeight = mouse.y + 0.2;
-    float midpassWeight = 1.0 - lowpassWeight - highpassWeight;
-    if (midpassWeight < 0.0) midpassWeight = 0.0;
-    // Normalize weights so they sum to 1 (prevents over/under exposure)
-    float wsum = lowpassWeight + midpassWeight + highpassWeight;
-    if (wsum > 0.0) {
-        lowpassWeight /= wsum;
-        midpassWeight /= wsum;
-        highpassWeight /= wsum;
+    // We allow manual weights (via uniforms) or fallback to mouse-driven weights.
+    float lowpassWeight;
+    float midpassWeight;
+    float highpassWeight;
+    float manualSum = u_lowWeight + u_midWeight + u_highWeight;
+    if (manualSum > 0.0001) {
+        // use normalized manual weights
+        lowpassWeight = u_lowWeight / manualSum;
+        midpassWeight = u_midWeight / manualSum;
+        highpassWeight = u_highWeight / manualSum;
+    } else {
+        // fallback: mouse-driven blending (legacy behavior)
+        lowpassWeight = 1.0 - 0.5 * mouse.y; // 畫面 y 向控制：遠近混合比例
+        highpassWeight = mouse.y + 0.2;
+        midpassWeight = 1.0 - lowpassWeight - highpassWeight;
+        if (midpassWeight < 0.0) midpassWeight = 0.0;
+        // Normalize weights so they sum to 1 (prevents over/under exposure)
+        float wsum = lowpassWeight + midpassWeight + highpassWeight;
+        if (wsum > 0.0) {
+            lowpassWeight /= wsum;
+            midpassWeight /= wsum;
+            highpassWeight /= wsum;
+        }
     }
 
     // Optionally tint or clamp midpass to avoid large color shifts

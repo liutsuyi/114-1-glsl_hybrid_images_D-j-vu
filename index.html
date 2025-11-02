@@ -126,7 +126,7 @@
       return;
     }
 
-    // 建立 sandbox 並將其放到 window 以便在 console 測試
+    // 建立 GlslCanvas sandbox，並放到 window 以便從 console 測試或手動 setUniform
     try {
       window.sandbox = new GlslCanvas(canvas);
     } catch (e) {
@@ -134,7 +134,7 @@
       return;
     }
 
-    // 載入固定的 mid-pass 圖片（single source mid1.png）到 u_tex2
+    // 預先載入第一組的 mid 圖到 shader（會在 loadSet 被覆寫，如果每組有自己的 mid 圖，loadSet 會載入相對應的 u_tex2）
     if (window.sandbox && window.sandbox.setUniform) {
       window.sandbox.setUniform('u_tex2', 'data/mid1.png');
     }
@@ -155,13 +155,15 @@
       return v;
     }
 
+    // pushUniforms(): 將目前滑桿值推送為 shader 的 uniforms
+    // 注意：如果三個權重的總和為 0，shader 會改用 mouse.y 的自動權重
     function pushUniforms() {
       if (!window.sandbox || !window.sandbox.setUniform) return;
       var low = updateUIValue(lowRange, lowVal);
       var mid = updateUIValue(midRange, midVal);
       var high = updateUIValue(highRange, highVal);
       var mg = updateUIValue(midGainRange, midGainVal);
-      // Send floats to shader; shader will normalize weights if sum > 0
+      // 傳送至 shader；若需要可把這些參數改為在 shader 端有更嚴格的範圍檢查
       window.sandbox.setUniform('u_lowWeight', low);
       window.sandbox.setUniform('u_midWeight', mid);
       window.sandbox.setUniform('u_highWeight', high);
@@ -188,7 +190,9 @@
     // 初始 push
     pushUniforms();
 
-    // 定義 4 組貼圖（每組三張：high / low / mid），請確保這些檔案存在於 data/ 下或自行改路徑
+    // textureSets: 每組包含三張貼圖 (high / low / mid)
+    // loadSet() 會在切換時將對應三張貼圖分別載入到 shader 的 u_tex0,u_tex1,u_tex2
+    // 你可以把 mid1..mid4.png 放到 data/ 下以啟用各組的 mid 圖
     var textureSets = [
       ['data/high1.png', 'data/low1.jpg', 'data/mid1.png'],
       ['data/high2.png', 'data/low2.jpg', 'data/mid2.png'],

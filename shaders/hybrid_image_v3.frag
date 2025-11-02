@@ -1,10 +1,21 @@
-// Author:CMH
-// update:tsuyi
-
-// Step1: Load the first image and apply a low-pass filter. 讀取圖片1，添加低通濾波(遠距離)
-// Step2: Recursively applying a frame buffer can enhance the blur effect. 添加frame buffer機制，增強blur效果
-// Step3: Load the second image and apply a high-pass filter. 讀取圖片2，添加高通濾波(近距離)
-// Step4: Combine the two filtered images and fine-tune the result. 融合兩圖片並微調
+// Author: CMH
+// Updated by: tsuyi
+//
+// 說明：這個 fragment shader 產生一個由三層合成的 hybrid image：
+//   - lowpass (遠景) 來自 u_tex1，透過大核模糊得到
+//   - midpass (中頻) 來自 u_tex2（外部提供的 band-pass/mid 圖），並乘上 u_midGain
+//   - highpass (近景) 來自 u_tex0，經過高通/銳化處理與雜訊、遮罩微調
+//
+// Uniforms:
+//   u_tex0 : sampler2D - 近景 (high-pass source)
+//   u_tex1 : sampler2D - 遠景 (low-pass source)
+//   u_tex2 : sampler2D - 中頻來源 (mid-pass image)
+//   u_mask : sampler2D - 可選的遮罩或紋理，用於高頻處理
+//   u_midGain : float  - mid 圖放大倍數（slider 可調）
+//   u_lowWeight,u_midWeight,u_highWeight : float - 可由外部設定三層權重（若總和為 0 則使用滑鼠 Y 控制的預設權重）
+//
+// 使用方式：前端用 GlslCanvas.setUniform() 設定以上 uniforms（例如在 UI 滑桿變動時傳入），
+// 或在 HTML 的 data-textures 中預先指定三張貼圖 (u_tex0,u_tex1,u_tex2)。
 
 #ifdef GL_ES
 precision mediump float;
@@ -17,11 +28,11 @@ uniform sampler2D u_tex0; // High-pass source (near image)
 uniform sampler2D u_tex1; // Low-pass source (far image)
 uniform sampler2D u_tex2; // Mid-pass source (band image)
 uniform sampler2D u_mask; // Masking pattern texture (e.g. paper grain, cloud)
-// Controls (can be set from JS via GlslCanvas.setUniform)
-uniform float u_midGain;
-uniform float u_lowWeight;
-uniform float u_midWeight;
-uniform float u_highWeight;
+// Controls (可由 JS 以 GlslCanvas.setUniform 設定)
+uniform float u_midGain;    // mid 圖放大倍數
+uniform float u_lowWeight;  // 手動低頻權重（若為 0 且三者和為 0，使用 mouse.y 的自動權重）
+uniform float u_midWeight;  // 手動中頻權重
+uniform float u_highWeight; // 手動高頻權重
 
 void main() {
     
@@ -55,8 +66,11 @@ void main() {
     offset[8] = vec2( 1,  1);
 
 
-    // 3.Step1: Low-pass + Mid-pass (Difference of Gaussians) for far-distance image u_tex1
-    // We compute two blurred versions (small and large) and derive a mid (band-pass) via DoG
+    // 3. 低頻與中頻處理
+    //    - 低頻 (lowpass) 採用較大核的模糊，代表遠景模糊信息
+    //    - 中頻 (midpass) 由外部貼圖 u_tex2 提供（可以是事先計算的 DoG 圖或其他 band 圖），
+    //      並以 u_midGain 控制強度；這讓中頻來源更有彈性（可替換或由後端預處理）
+    //    備註：原先版本曾以 DoG(blurSmall - blurLarge) 計算 mid，但此處改為直接採樣 u_tex2
     vec3 blurSmall = vec3(0.0);
     vec3 blurLarge = vec3(0.0);
     for (int i = 0; i < 9; i++) {
@@ -115,7 +129,10 @@ void main() {
         highpass = mix(highpass, blur, blurStrength);
 
 
-    // 5.Step4: Combine filtered results (hybrid fusion) into three layers: low / mid / high
+    // 5. 合成 (low / mid / high)
+    //    支援兩種權重來源：
+    //      1) 手動權重：若 u_lowWeight+u_midWeight+u_highWeight > 0，則使用這三個 uniforms（並正規化）
+    //      2) 自動權重：若未設定手動權重，則回退到以滑鼠 y 座標計算的預設混合比例（舊行為）
     // We allow manual weights (via uniforms) or fallback to mouse-driven weights.
     float lowpassWeight;
     float midpassWeight;

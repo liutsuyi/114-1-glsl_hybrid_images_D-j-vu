@@ -13,6 +13,8 @@
 //   u_mask : sampler2D - 可選的遮罩或紋理，用於高頻處理
 //   u_midGain : float  - mid 圖放大倍數（slider 可調）
 //   u_lowWeight,u_midWeight,u_highWeight : float - 可由外部設定三層權重（若總和為 0 則使用滑鼠 Y 控制的預設權重）
+//   u_original : sampler2D - 每組的原圖 (可透過 loadSet 設定)
+//   u_showOriginal : float - 是否直接顯示原圖（>0.5 代表顯示原圖）
 //
 // 使用方式：前端用 GlslCanvas.setUniform() 設定以上 uniforms（例如在 UI 滑桿變動時傳入），
 // 或在 HTML 的 data-textures 中預先指定三張貼圖 (u_tex0,u_tex1,u_tex2)。
@@ -33,13 +35,16 @@ uniform float u_midGain;    // mid 圖放大倍數
 uniform float u_lowWeight;  // 手動低頻權重（若為 0 且三者和為 0，使用 mouse.y 的自動權重）
 uniform float u_midWeight;  // 手動中頻權重
 uniform float u_highWeight; // 手動高頻權重
+// Original image toggle: 當 u_showOriginal > 0.5 時，直接輸出 u_original 的像素
+uniform sampler2D u_original; // 原圖來源（每組可指定）
+uniform float u_showOriginal; // 0.0 = normal hybrid, 1.0 = show original
 
 void main() {
     
     // 1.Coordinate setup //
     vec2 st = gl_FragCoord.xy / u_resolution.xy;    
     vec2 uv = st; //[0~1]
-    vec2 mouse= u_mouse.xy / u_resolution.xy;
+    vec2 mouse = u_mouse.xy / u_resolution.xy;
     vec2 texel = 1.0 / u_resolution.xy;
 
 
@@ -165,7 +170,12 @@ void main() {
     vec3 hybrid = lowpass * lowpassWeight + midpass * midpassWeight + highpass * highpassWeight;
     
     
-
-    // Output final hybrid image //
-    gl_FragColor = vec4(hybrid, 1.0);
+    // 如果開啟顯示原圖（u_showOriginal > 0.5），直接輸出 u_original 的像素；否則輸出 hybrid
+    if (u_showOriginal > 0.5) {
+        vec3 org = texture2D(u_original, uv).rgb;
+        gl_FragColor = vec4(org, 1.0);
+    } else {
+        // Output final hybrid image //
+        gl_FragColor = vec4(hybrid, 1.0);
+    }
 }

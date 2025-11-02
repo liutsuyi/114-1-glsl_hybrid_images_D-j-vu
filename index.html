@@ -77,10 +77,22 @@
     <aside id="sidebar">
       <h3>Déjà vu Image sets</h3>
       <ul id="setList">
-        <li data-set="0" class="active"><img class="set-icon" src="data/icon1.png" alt="set1"> <span>Set 1 — 台北 / 京都近郊</span></li>
-        <li data-set="1"><img class="set-icon" src="data/icon2.png" alt="set2"> <span>Set 2 — 鄰暗時刻</span></li>
-        <li data-set="2"><img class="set-icon" src="data/icon3.png" alt="set3"> <span>Set 3 — 街角一隅</span></li>
-        <li data-set="3"><img class="set-icon" src="data/icon4.png" alt="set4"> <span>Set 4 — 參拜</span></li>
+        <li data-set="0" class="active"><img class="set-icon" src="data/icon1.png" alt="set1"> <span>Set 1 — 台北 / 京都近郊</span>
+          <input type="checkbox" class="orig-toggle" data-set="0" id="orig0" style="margin-left:8px;" />
+          <label for="orig0" style="font-size:12px; margin-left:6px; color:rgba(230,238,240,0.8);">原圖</label>
+        </li>
+        <li data-set="1"><img class="set-icon" src="data/icon2.png" alt="set2"> <span>Set 2 — 鄰暗時刻</span>
+          <input type="checkbox" class="orig-toggle" data-set="1" id="orig1" style="margin-left:8px;" />
+          <label for="orig1" style="font-size:12px; margin-left:6px; color:rgba(230,238,240,0.8);">原圖</label>
+        </li>
+        <li data-set="2"><img class="set-icon" src="data/icon3.png" alt="set3"> <span>Set 3 — 街角一隅</span>
+          <input type="checkbox" class="orig-toggle" data-set="2" id="orig2" style="margin-left:8px;" />
+          <label for="orig2" style="font-size:12px; margin-left:6px; color:rgba(230,238,240,0.8);">原圖</label>
+        </li>
+        <li data-set="3"><img class="set-icon" src="data/icon4.png" alt="set4"> <span>Set 4 — 參拜</span>
+          <input type="checkbox" class="orig-toggle" data-set="3" id="orig3" style="margin-left:8px;" />
+          <label for="orig3" style="font-size:12px; margin-left:6px; color:rgba(230,238,240,0.8);">原圖</label>
+        </li>
       </ul>
       <p class="hint">點選切換貼圖組 (共 4 組)</p>
       <div class="controls">
@@ -194,33 +206,48 @@
     // loadSet() 會在切換時將對應三張貼圖分別載入到 shader 的 u_tex0,u_tex1,u_tex2
     // 你可以把 mid1..mid4.png 放到 data/ 下以啟用各組的 mid 圖
     var textureSets = [
-      ['data/high1.png', 'data/low1.jpg', 'data/mid1.png'],
-      ['data/high2.png', 'data/low2.jpg', 'data/mid2.png'],
-      ['data/high3.png', 'data/low3.jpg', 'data/mid3.png'],
-      ['data/high4.png', 'data/low4.jpg', 'data/mid4.png']
+      ['data/high1.png', 'data/low1.jpg', 'data/mid1.png', 'data/org1.png'],
+      ['data/high2.png', 'data/low2.jpg', 'data/mid2.png', 'data/org2.png'],
+      ['data/high3.png', 'data/low3.jpg', 'data/mid3.png', 'data/org3.png'],
+      ['data/high4.png', 'data/low4.jpg', 'data/mid4.png', 'data/org4.png']
     ];
 
     var setList = document.getElementById('setList');
     var items = setList.querySelectorAll('li');
 
+    var activeSetIndex = 0;
+    // per-set original toggle states
+    var originalFlags = [false, false, false, false];
+
     function setActive(index) {
       items.forEach(function (it) { it.classList.remove('active'); });
       var el = setList.querySelector('li[data-set="' + index + '"]');
       if (el) el.classList.add('active');
+      activeSetIndex = index;
     }
 
     function loadSet(index) {
       index = Math.max(0, Math.min(textureSets.length - 1, index));
       var paths = textureSets[index];
       // GlslCanvas 使用 setUniform 來載入 sampler2D (會呼叫 loadTexture)
-      // 現在每組包含三張貼圖：u_tex0 (high), u_tex1 (low), u_tex2 (mid)
+      // 現在每組包含四張貼圖：u_tex0 (high), u_tex1 (low), u_tex2 (mid), u_original (org)
       if (window.sandbox && window.sandbox.setUniform) {
         window.sandbox.setUniform('u_tex0', paths[0]);
         window.sandbox.setUniform('u_tex1', paths[1]);
         if (paths.length > 2) {
           window.sandbox.setUniform('u_tex2', paths[2]);
         }
-        console.info('Loaded texture set', index, paths);
+        if (paths.length > 3) {
+          window.sandbox.setUniform('u_original', paths[3]);
+        }
+        // apply stored original-flag for this set
+        var show = originalFlags[index] ? 1.0 : 0.0;
+        window.sandbox.setUniform('u_showOriginal', show);
+        // update the checkbox UI for this set
+        var cb = document.querySelector('.orig-toggle[data-set="' + index + '"]');
+        if (cb) cb.checked = !!originalFlags[index];
+
+        console.info('Loaded texture set', index, paths, 'showOriginal=', !!originalFlags[index]);
       } else {
         console.warn('sandbox not ready yet');
       }
@@ -232,6 +259,19 @@
       li.addEventListener('click', function () {
         var idx = parseInt(li.getAttribute('data-set'), 10);
         loadSet(idx);
+      });
+    });
+
+    // 原圖勾選框：若切換某組到原圖，則切換該組的原圖 flag；若當前為該組則立即套用
+    var origToggles = document.querySelectorAll('.orig-toggle');
+    origToggles.forEach(function (cb) {
+      cb.addEventListener('change', function (e) {
+        var setIdx = parseInt(cb.getAttribute('data-set'), 10);
+        originalFlags[setIdx] = cb.checked;
+        // 若當前 activeSet 剛好是這個 set，則立即更新 shader 的 u_showOriginal
+        if (setIdx === activeSetIndex && window.sandbox && window.sandbox.setUniform) {
+          window.sandbox.setUniform('u_showOriginal', cb.checked ? 1.0 : 0.0);
+        }
       });
     });
 

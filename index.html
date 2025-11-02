@@ -24,7 +24,8 @@
 
     /* 左側選單 */
     #sidebar {
-      width: 280px;
+      /* 增加寬度以避免文字被截斷 */
+      width: 360px;
       padding: 18px;
       box-sizing: border-box;
       position: fixed;
@@ -43,9 +44,11 @@
     }
 
   #setList { padding: 0; margin: 0 0 10px 0; }
-  /* 讓按鈕寬度延伸並避免換行，並於左側顯示正方形 icon */
-  #setList li { display: flex; align-items: center; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; list-style: none; padding: 8px 10px; cursor: pointer; border-radius: 4px; margin-bottom: 6px; background: transparent; transition: background 0.15s ease; }
-  #setList li .set-icon { width: 44px; height: 44px; flex: 0 0 44px; object-fit: cover; border-radius: 6px; margin-right: 10px; }
+  /* 讓按鈕有足夠空間顯示文字，並於左側顯示正方形 icon */
+  #setList li { display: flex; align-items: center; width: 100%; box-sizing: border-box; list-style: none; padding: 8px 10px; cursor: pointer; border-radius: 4px; margin-bottom: 6px; background: transparent; transition: background 0.15s ease; gap: 10px; }
+  #setList li .set-icon { width: 44px; height: 44px; flex: 0 0 44px; object-fit: cover; border-radius: 6px; }
+  /* label 區塊允許換行並能在 flex 中收縮，避免被截斷 */
+  #setList li .set-label { flex: 1 1 auto; min-width: 0; word-break: break-word; }
     #setList li:hover { background: rgba(255,255,255,0.03); }
     #setList li.active { background: #6ee7b7; color: #042; font-weight: 600; }
     .hint { font-size: 12px; color: rgba(230,238,240,0.7); margin-top: 8px; }
@@ -58,7 +61,7 @@
   .control .val { width: 36px; text-align: right; font-size: 12px; margin-left: 8px; }
 
   /* 主區塊（放 canvas） */
-  #main { margin-left: 300px; display: flex; align-items: center; justify-content: center; width: calc(100% - 300px); height: 100vh; }
+  #main { margin-left: 380px; display: flex; align-items: center; justify-content: center; width: calc(100% - 380px); height: 100vh; }
 
     #glslCanvas {
       max-width: 90vw;
@@ -247,7 +250,7 @@
         var cb = document.querySelector('.orig-toggle[data-set="' + index + '"]');
         if (cb) cb.checked = !!originalFlags[index];
 
-        console.info('Loaded texture set', index, paths, 'showOriginal=', !!originalFlags[index]);
+        console.info('Loaded texture set', index, paths, 'u_original=', paths[3], 'showOriginal=', !!originalFlags[index]);
       } else {
         console.warn('sandbox not ready yet');
       }
@@ -265,12 +268,28 @@
     // 原圖勾選框：若切換某組到原圖，則切換該組的原圖 flag；若當前為該組則立即套用
     var origToggles = document.querySelectorAll('.orig-toggle');
     origToggles.forEach(function (cb) {
+      // 防止點擊 checkbox 或其 label 時事件冒泡到 li，導致 li 的 click handler 重新載入並覆寫 checkbox 狀態
+      cb.addEventListener('click', function (evt) {
+        evt.stopPropagation();
+      });
+      // 如果有對應的 label（for=id），也阻止 label 的 click 冒泡
+      var lab = document.querySelector('label[for="' + cb.id + '"]');
+      if (lab) {
+        lab.addEventListener('click', function (evt) { evt.stopPropagation(); });
+      }
       cb.addEventListener('change', function (e) {
         var setIdx = parseInt(cb.getAttribute('data-set'), 10);
         originalFlags[setIdx] = cb.checked;
+        // 確保 shader 的 u_original 指向該組的 org 檔案（避免尚未載入或被覆寫的情形）
+        if (window.sandbox && window.sandbox.setUniform && textureSets[setIdx] && textureSets[setIdx].length > 3) {
+          var orgPath = textureSets[setIdx][3];
+          window.sandbox.setUniform('u_original', orgPath);
+          console.info('Set u_original for set', setIdx, orgPath);
+        }
         // 若當前 activeSet 剛好是這個 set，則立即更新 shader 的 u_showOriginal
         if (setIdx === activeSetIndex && window.sandbox && window.sandbox.setUniform) {
           window.sandbox.setUniform('u_showOriginal', cb.checked ? 1.0 : 0.0);
+          console.info('Set u_showOriginal for set', setIdx, cb.checked);
         }
       });
     });
